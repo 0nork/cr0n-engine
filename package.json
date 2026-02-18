@@ -1,0 +1,53 @@
+{
+  "name": "@0nork/cr0n-engine",
+  "version": "1.0.0",
+  "description": "Federated AI Closed Learning Loop - Multi-model SEO optimization engine with adaptive weight learning",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "seo",
+    "ai",
+    "federation",
+    "optimization",
+    "machine-learning",
+    "multi-model",
+    "content-optimization",
+    "mcp",
+    "0nork"
+  ],
+  "author": "RocketOpp LLC <mike@rocketopp.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0nork/cr0n-engine"
+  },
+  "dependencies": {
+    "ai": "^6.0.0",
+    "@ai-sdk/anthropic": "^3.0.0",
+    "@ai-sdk/openai": "^3.0.0",
+    "@ai-sdk/google": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,190 @@
+// ============================================================
+// cr0n-engine — Claude Adapter
+// Anthropic Claude via @ai-sdk/anthropic
+// ============================================================
+
+import type { ModelId, PageData, ActionBucket, ContentBrief } from '../../core/types.js'
+import type {
+  ModelAdapter,
+  ModelAnalysis,
+  BusinessContext,
+  ContentScore,
+  GeneratedContent,
+} from '../types.js'
+import { BUCKET_INSTRUCTIONS } from '../../core/constants.js'
+
+export class ClaudeAdapter implements ModelAdapter {
+  id: ModelId = 'claude'
+  name: string
+  provider = 'anthropic'
+  available: boolean
+
+  private apiKey: string
+  private modelName: string
+
+  constructor(apiKey: string, model?: string) {
+    this.apiKey = apiKey
+    this.modelName = model || 'claude-sonnet-4-20250514'
+    this.name = `Claude ${this.modelName}`
+    this.available = !!apiKey
+  }
+
+  async analyzeOpportunity(page: PageData, bucket: ActionBucket): Promise<ModelAnalysis> {
+    const { generateObject } = await import('ai')
+    const { createAnthropic } = await import('@ai-sdk/anthropic')
+    const { z } = await import('zod')
+
+    const anthropic = createAnthropic({ apiKey: this.apiKey })
+
+    const result = await generateObject({
+      model: anthropic(this.modelName),
+      schema: z.object({
+        confidence: z.number().min(0).max(1),
+        priorityScore: z.number().min(0).max(1),
+        recommendations: z.array(z.string()),
+        keyInsights: z.array(z.string()),
+        suggestedActions: z.array(z.string()),
+      }),
+      prompt: this.buildAnalysisPrompt(page, bucket),
+    })
+
+    return {
+      modelId: this.id,
+      bucket,
+      ...result.object,
+    }
+  }
+
+  async generateBrief(page: PageData, bucket: ActionBucket, context?: BusinessContext): Promise<ContentBrief> {
+    const { generateObject } = await import('ai')
+    const { createAnthropic } = await import('@ai-sdk/anthropic')
+    const { z } = await import('zod')
+
+    const anthropic = createAnthropic({ apiKey: this.apiKey })
+
+    const result = await generateObject({
+      model: anthropic(this.modelName),
+      schema: z.object({
+        titleRecommendations: z.array(z.string()).min(1).max(3),
+        h1Recommendation: z.string(),
+        metaDescription: z.string(),
+        targetWordCount: z.number(),
+        h2Additions: z.array(z.string()),
+        priorityTasks: z.array(z.string()),
+        schemaStack: z.array(z.string()),
+      }),
+      prompt: this.buildBriefPrompt(page, bucket, context),
+    })
+
+    return {
+      url: page.url,
+      targetKeyword: page.primaryKeyword,
+      bucket,
+      ...result.object,
+      internalLinks: [],
+      keywordDensityTarget: '0.6% - 1.2%',
+      mandatoryPlacements: ['First 100 words', 'One H2 exact match', 'Last 120 words'],
+      metricsSnapshot: {
+        clicks: page.clicks,
+        impressions: page.impressions,
+        ctr: page.ctr,
+        position: page.position,
+        conversions: page.conversions,
+      },
+      status: 'draft',
+      generatedBy: this.id,
+    }
+  }
+
+  async scoreContent(content: string, brief: ContentBrief): Promise<ContentScore> {
+    const { generateObject } = await import('ai')
+    const { createAnthropic } = await import('@ai-sdk/anthropic')
+    const { z } = await import('zod')
+
+    const anthropic = createAnthropic({ apiKey: this.apiKey })
+
+    const result = await generateObject({
+      model: anthropic(this.modelName),
+      schema: z.object({
+        overall: z.number().min(0).max(100),
+        relevance: z.number().min(0).max(100),
+        readability: z.number().min(0).max(100),
+        seoAlignment: z.number().min(0).max(100),
+        suggestions: z.array(z.string()),
+      }),
+      prompt: `Score this content against the SEO brief.\n\nBrief target keyword: "${brief.targetKeyword}"\nBucket: ${brief.bucket}\nTarget word count: ${brief.targetWordCount}\n\nContent:\n${content.slice(0, 3000)}`,
+    })
+
+    return { modelId: this.id, ...result.object }
+  }
+
+  async generateContent(brief: ContentBrief): Promise<GeneratedContent> {
+    const { generateText } = await import('ai')
+    const { createAnthropic } = await import('@ai-sdk/anthropic')
+
+    const anthropic = createAnthropic({ apiKey: this.apiKey })
+
+    const result = await generateText({
+      model: anthropic(this.modelName),
+      prompt: `Write SEO-optimized content for the keyword "${brief.targetKeyword}".\n\nAction type: ${brief.bucket}\nTarget word count: ${brief.targetWordCount}\nH1: ${brief.h1Recommendation}\nH2 sections: ${brief.h2Additions.join(', ')}\n\nWrite the full article in markdown format.`,
+    })
+
+    const wordCount = result.text.split(/\s+/).length
+
+    return {
+      modelId: this.id,
+      content: result.text,
+      wordCount,
+      title: brief.titleRecommendations[0] || brief.targetKeyword,
+      metaDescription: brief.metaDescription,
+      h2Sections: brief.h2Additions,
+    }
+  }
+
+  private buildAnalysisPrompt(page: PageData, bucket: ActionBucket): string {
+    const instructions = BUCKET_INSTRUCTIONS[bucket]
+    return `Analyze this SEO opportunity and provide recommendations.
+
+URL: ${page.url}
+Primary Keyword: "${page.primaryKeyword}"
+Position: ${page.position}
+Impressions: ${page.impressions}
+CTR: ${(page.ctr * 100).toFixed(2)}%
+Clicks: ${page.clicks}
+Conversions: ${page.conversions}
+Intent: ${page.intent}
+Freshness Score: ${page.freshnessScore}
+
+Assigned Bucket: ${bucket}
+Bucket Strategy: ${instructions.instruction}
+
+Analyze the opportunity. Rate confidence (0-1) and priority (0-1). Provide specific, actionable recommendations.`
+  }
+
+  private buildBriefPrompt(page: PageData, bucket: ActionBucket, context?: BusinessContext): string {
+    const instructions = BUCKET_INSTRUCTIONS[bucket]
+    let prompt = `Generate an SEO content brief for this page.
+
+URL: ${page.url}
+Primary Keyword: "${page.primaryKeyword}"
+Position: ${page.position}
+Impressions: ${page.impressions}
+CTR: ${(page.ctr * 100).toFixed(2)}%
+Intent: ${page.intent}
+
+Bucket: ${bucket}
+Strategy: ${instructions.instruction}
+`
+
+    if (context) {
+      if (context.industry) prompt += `\nIndustry: ${context.industry}`
+      if (context.targetAudience) prompt += `\nTarget Audience: ${context.targetAudience}`
+      if (context.brandVoice) prompt += `\nBrand Voice: ${context.brandVoice}`
+      if (context.customInstructions) prompt += `\nCustom Instructions: ${context.customInstructions}`
+    }
+
+    prompt += `\n\nGenerate a comprehensive SEO content brief with title variations, H2 sections, and priority tasks.`
+
+    return prompt
+  }
+}
