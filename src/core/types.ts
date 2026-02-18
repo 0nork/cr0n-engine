@@ -429,3 +429,52 @@ export interface ContentWriterInput {
   targetWordCount: number
   customInstructions: string
 }
+
+// ============================================================
+// CLI — Project Scanner Types
+// ============================================================
+
+export interface ProjectScan {
+  rootDir: string
+  packageJson: Record<string, any> | null
+  tsconfig: Record<string, any> | null
+  framework: string
+  language: 'typescript' | 'javascript'
+  packageManager: 'npm' | 'yarn' | 'pnpm' | 'bun'
+  directories: string[]
+  filesByExtension: Record<string, number>
+  configFiles: string[]
+  entryPoints: string[]
+  integrations: string[]
+}
+
+// ============================================================
+// CLI — AI Brain Types
+// ============================================================
+
+export interface AIBrain {
+  version: string
+  generatedAt: string
+  generatedBy: ModelId
+  project: {
+    name: string
+    framework: string
+    language: 'typescript' | 'javascript'
+    packageManager: 'npm' | 'yarn' | 'pnpm' | 'bun'
+    entryPoints: string[]
+  }
+  integration: {
+    configPath: string
+    dataSourcePaths: string[]
+    apiRoutePath: string
+    cronPath: string
+    recommendedPattern: string
+  }
+  models: {
+    primary: ModelId
+    apiKeyEnvVar: string
+    recommended: ModelId[]
+  }
+  capabilities: string[]
+  nextSteps: string[]
+}

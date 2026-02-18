@@ -34,6 +34,8 @@ export type {
   GSCPageData,
   GA4PageData,
   ContentWriterInput,
+  ProjectScan,
+  AIBrain,
 } from './core/types.js'
 
 export { ACTION_BUCKETS, MODEL_IDS } from './core/types.js'
@@ -90,6 +92,11 @@ export { GrokAdapter } from './federation/adapters/grok.js'
 
 // ---- Config ----
 export { resolveConfig } from './core/config.js'
+
+// ---- CLI / Brain (for programmatic usage) ----
+export { scanProject } from './cli/scanner.js'
+export { generateBrain } from './cli/brain.js'
+export { writeBrainFiles } from './cli/writer.js'
 
 // ============================================================
 // Main API: createEngine()
